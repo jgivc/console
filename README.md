@@ -30,7 +30,7 @@ func main() {
         },
         {
             Host:          "192.168.1.20",
-            Port:          22,
+            Port:          23,
             TransportType: console.TransportTELNET,
             Account: console.Account{
                 Username: "admin",

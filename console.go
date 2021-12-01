@@ -53,9 +53,9 @@ func (c *console) tryAuth() error {
 				line := ss[1]
 				line = strings.ToLower(line)
 				if strings.Contains(line, userPromptPart) {
-					c.Send(c.h.Username)
+					c.Sendln(c.h.Username)
 				} else if strings.Contains(line, passwordPromptPart) {
-					c.Send(c.h.Password)
+					c.Sendln(c.h.Password)
 				} else {
 					break
 				}
@@ -117,12 +117,12 @@ func (c *console) Open(host *Host) error {
 }
 
 func (c *console) Execute(cmd string) (string, error) {
-	c.Send(cmd)
+	c.Sendln(cmd)
 	return c.readToPrompt()
 }
 
 func (c *console) Run(cmd string) error {
-	c.Send(cmd)
+	c.Sendln(cmd)
 	_, err := c.readToPrompt()
 
 	return err
