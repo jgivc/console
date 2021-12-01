@@ -21,6 +21,7 @@ var (
 	cmdEnd = []byte("\r")
 )
 
+//Console is uniform interface for interacting with network hardware via telnet/ssh
 type Console interface {
 	Open(host *Host) error
 	Execute(cmd string) (string, error)
@@ -141,6 +142,7 @@ func (c *console) Send(cmd string) error {
 	return nil
 }
 
+//New function create Console instance
 func New() Console {
 	return &console{
 		buf: make([]byte, readBufferSize),

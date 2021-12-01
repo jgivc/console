@@ -12,7 +12,9 @@ const (
 	defaultSSHPort    = 22
 	defaultTelnetPort = 23
 
+	//TransportSSH transport used ssh connection
 	TransportSSH = iota
+	//TransportTELNET transport used telnet connection
 	TransportTELNET
 )
 

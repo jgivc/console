@@ -6,6 +6,16 @@ import (
 	"io"
 )
 
+const (
+	IAC  = 255
+	SB   = 250
+	SE   = 240
+	WILL = 251
+	WONT = 252
+	DO   = 253
+	DONT = 254
+)
+
 var (
 	errCorrupted = errors.New("Corrupted")
 )
@@ -18,7 +28,7 @@ var (
 //
 // The TELNET protocol also has a distinction between 'data' and 'commands'.
 //
-//(DataReader is targetted toward TELNET 'data', not TELNET 'commands'.)
+//(DataReader is targeted toward TELNET 'data', not TELNET 'commands'.)
 //
 // If a byte with value 255 (=IAC) appears in the data, then it must be escaped.
 //
@@ -72,16 +82,6 @@ func newDataReader(r io.Reader) *internalDataReader {
 // Read reads the TELNET escaped data from the  wrapped io.Reader, and "un-escapes" it into 'data'.
 func (r *internalDataReader) Read(data []byte) (n int, err error) {
 
-	const IAC = 255
-
-	const SB = 250
-	const SE = 240
-
-	const WILL = 251
-	const WONT = 252
-	const DO = 253
-	const DONT = 254
-
 	p := data
 
 	for len(p) > 0 {
@@ -92,11 +92,11 @@ func (r *internalDataReader) Read(data []byte) (n int, err error) {
 		}
 
 		b, err = r.buffered.ReadByte()
-		if nil != err {
+		if err != nil {
 			return n, err
 		}
 
-		if IAC == b {
+		if b == IAC {
 			var peeked []byte
 
 			peeked, err = r.buffered.Peek(1)
@@ -106,8 +106,7 @@ func (r *internalDataReader) Read(data []byte) (n int, err error) {
 
 			switch peeked[0] {
 			case WILL, WONT, DO, DONT:
-				_, err = r.buffered.Discard(2)
-				if nil != err {
+				if _, err := r.buffered.Discard(2); err != nil {
 					return n, err
 				}
 			case IAC:
@@ -115,40 +114,14 @@ func (r *internalDataReader) Read(data []byte) (n int, err error) {
 				n++
 				p = p[1:]
 
-				_, err = r.buffered.Discard(1)
-				if nil != err {
+				if _, err := r.buffered.Discard(1); err != nil {
 					return n, err
 				}
 			case SB:
-				for {
-					var b2 byte
-					b2, err = r.buffered.ReadByte()
-					if nil != err {
-						return n, err
-					}
-
-					if IAC == b2 {
-						peeked, err = r.buffered.Peek(1)
-						if nil != err {
-							return n, err
-						}
-
-						if IAC == peeked[0] {
-							_, err = r.buffered.Discard(1)
-							if nil != err {
-								return n, err
-							}
-						}
-
-						if SE == peeked[0] {
-							_, err = r.buffered.Discard(1)
-							if nil != err {
-								return n, err
-							}
-							break
-						}
-					}
+				if err := r.handleSB(); err != nil {
+					return n, err
 				}
+
 			case SE:
 				_, err = r.buffered.Discard(1)
 				if nil != err {
@@ -169,4 +142,35 @@ func (r *internalDataReader) Read(data []byte) (n int, err error) {
 	}
 
 	return n, nil
+}
+
+func (r *internalDataReader) handleSB() error {
+	for {
+		b2, err := r.buffered.ReadByte()
+		if nil != err {
+			return err
+		}
+
+		if b2 == IAC {
+			peeked, err := r.buffered.Peek(1)
+			if err != nil {
+				return err
+			}
+
+			if peeked[0] == IAC {
+				if _, err := r.buffered.Discard(1); err != nil {
+					return err
+				}
+			}
+
+			if peeked[0] == SE {
+				if _, err := r.buffered.Discard(1); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+
+	return nil
 }

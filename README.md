@@ -1,6 +1,6 @@
 # jgivc/console
 
-This package provides a uniform interface for interacting with hardware via telnet/ssh
+This package provides a uniform interface for interacting with network hardware via telnet/ssh
 This package uses part of [reiver/go-telnet package](https://github.com/reiver/go-telnet) for handle telnet connection.
 
 ## Usage
