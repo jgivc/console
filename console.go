@@ -27,6 +27,7 @@ type Console interface {
 	Execute(cmd string) (string, error)
 	Run(cmd string) error // Just run command and read and omit output
 	Send(cmd string) error
+	Sendln(cmd string) error
 	SetPrompt(pattern string)
 	Close() error
 }
@@ -136,6 +137,12 @@ func (c *console) Close() error {
 }
 
 func (c *console) Send(cmd string) error {
+	c.tr.Write([]byte(cmd))
+
+	return nil
+}
+
+func (c *console) Sendln(cmd string) error {
 	c.tr.Write([]byte(cmd))
 	c.tr.Write(cmdEnd)
 
