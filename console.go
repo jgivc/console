@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	promptWaitTimeout     = 5 * time.Second
+	promptWaitTimeout     = 10 * time.Second
 	promptMatchLen    int = 15
 	readBufferSize        = 200
 

@@ -57,7 +57,7 @@ func main() {
 
         fmt.Println(out)
 
-        c.Send("q")
+        c.Sendln("q")
     }
 
 }
