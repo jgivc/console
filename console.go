@@ -76,7 +76,16 @@ func (c *console) readToPrompt() (string, error) {
 		if err != nil {
 			if err == errorRreadTimeout {
 				if time.Since(start) < promptWaitTimeout {
-
+					l := len(b)
+					if l > promptMatchLen {
+						if c.pm.match(string(b[l-promptMatchLen:])) {
+							break
+						}
+					} else {
+						if c.pm.match(string(b)) {
+							break
+						}
+					}
 					continue
 				}
 
