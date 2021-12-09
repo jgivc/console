@@ -24,3 +24,30 @@ func (h *Host) GetHostPort() string {
 func (h *Host) HasAccount() bool {
 	return !(h.Account == (Account{}))
 }
+
+//HostFactory convert uri to host and set default Account if not exist
+type HostFactory interface {
+	GetHost(uri string) (*Host, error)
+}
+
+type hf struct {
+	account Account
+}
+
+//GetHost return *Host from string uri
+func (f *hf) GetHost(uri string) (host *Host, err error) {
+	host, err = URI(uri).ToHost()
+	if err != nil {
+		return
+	}
+
+	if !host.HasAccount() {
+		host.Account = f.account
+	}
+
+	return
+}
+
+func NewHostFactory(account Account) HostFactory {
+	return &hf{account: account}
+}

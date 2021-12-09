@@ -18,47 +18,45 @@ import (
 )
 
 func main() {
-    hosts := []console.Host{
-        {
-            Host:          "192.168.1.10",
-            Port:          22,
-            TransportType: console.TransportSSH,
-            Account: console.Account{
-                Username: "admin",
-                Password: "pass",
-            },
-        },
-        {
-            Host:          "192.168.1.20",
-            Port:          23,
-            TransportType: console.TransportTELNET,
-            Account: console.Account{
-                Username: "admin",
-                Password: "pass",
-            },
-        },
-    }
+    defaultAccount := console.Account{Username: "user", Password: "password"}
+    hostFactory := console.NewHostFactory(defaultAccount)
 
-    for _, h := range hosts {
-        c := console.New()
-        if err := c.Open(&h); err != nil {
-            log.Fatal(err)
-        }
-        defer c.Close()
-
-        if err := c.Run("term le 0"); err != nil {
-            log.Fatal(err)
-        }
-
-        out, err := c.Execute("sh ver")
+    for _, uri := range []string{"host1", "ssh://host2", "user1:password1@host3"} {
+        host, err := hostFactory.GetHost(uri)
         if err != nil {
-            log.Fatal(err)
+            log.Println("cannot convert uri to host")
+            continue
         }
 
-        fmt.Println(out)
+        if err := workOnHost(host); err != nil {
+            log.Print(err)
+        }
 
-        c.Sendln("q")
+    }
+}
+
+func workOnHost(host *console.Host) (err error) {
+    c := console.New()
+    if err = c.Open(host); err != nil {
+        return
+    }
+    defer c.Close()
+
+    fmt.Printf("Connect to host %s\n", host.GetHostPort())
+
+    if err = c.Run("term le 0"); err != nil {
+        return
     }
 
+    out, err := c.Execute("sh ver")
+    if err != nil {
+        return
+    }
+
+    fmt.Println(out)
+
+    c.Sendln("q")
+
+    return
 }
 ```
