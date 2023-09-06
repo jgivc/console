@@ -1,37 +1,40 @@
-package console
+package util
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/jgivc/console/host"
+	"github.com/jgivc/console/transport"
 )
 
 func TestURI(t *testing.T) {
-	data := map[string]*Host{
+	data := map[string]*host.Host{
 		"10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultTelnetPort,
-			TransportType: TransportTELNET,
+			TransportType: transport.TransportTELNET,
 		},
 		"ssh://10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultSSHPort,
-			TransportType: TransportSSH,
+			TransportType: transport.TransportSSH,
 		},
 		"telnet://10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultTelnetPort,
-			TransportType: TransportTELNET,
+			TransportType: transport.TransportTELNET,
 		},
 		"ssh://10.1.1.1:12345": {
 			Host:          "10.1.1.1",
 			Port:          12345,
-			TransportType: TransportSSH,
+			TransportType: transport.TransportSSH,
 		},
 		"user:pass@10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultTelnetPort,
-			TransportType: TransportTELNET,
-			Account: Account{
+			TransportType: transport.TransportTELNET,
+			Account: host.Account{
 				Username: "user",
 				Password: "pass",
 			},
@@ -39,8 +42,8 @@ func TestURI(t *testing.T) {
 		"user:pass:enable@10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultTelnetPort,
-			TransportType: TransportTELNET,
-			Account: Account{
+			TransportType: transport.TransportTELNET,
+			Account: host.Account{
 				Username:       "user",
 				Password:       "pass",
 				EnablePassword: "enable",
@@ -49,8 +52,8 @@ func TestURI(t *testing.T) {
 		"ssh://user:pass:enable@10.1.1.1": {
 			Host:          "10.1.1.1",
 			Port:          defaultSSHPort,
-			TransportType: TransportSSH,
-			Account: Account{
+			TransportType: transport.TransportSSH,
+			Account: host.Account{
 				Username:       "user",
 				Password:       "pass",
 				EnablePassword: "enable",
@@ -69,5 +72,4 @@ func TestURI(t *testing.T) {
 			t.Fatalf("error for uri: '%s', want: %v but got: %v", k, data[k], h)
 		}
 	}
-
 }

@@ -1,0 +1,28 @@
+default_config:
+  auth_prompt_pattern: (?i)((user|pass)\w+:|[\w\-]+[>#])
+  prompt_pattern: '[\w\-]+#'
+  auth_timeout: 5s
+  exec_timeout: 5s
+  username_prompt_contains: 'username:'   # if found prompt ignore case contains, then send username
+  password_prompt_contains: 'password:'   # if found prompt ignore case contains, then send password
+  prompt_suffix: '#'                      # if found prompt endswith, then auth done
+  enable_suffix: '>'                      # if found prompt endswith, then send enable password
+  enable_command: en
+  prompt_match_lengt: 20                  # remains in the buffer for the next matching
+  transport_read_timeout: 1s
+  transport_reader_buffer_size: 1024
+default_account:
+  username: admin
+  password: password
+  enable_password: enablePassword
+initial_commands:
+  - term le 0
+exit_command: q
+hosts:
+  - 10.0.0.1
+  - uri: user:password1@10.0.0.2
+    console_config:   # it duplicate default_config
+      auth_prompt_pattern: (?i)((user|pass)\w+:|[\w\-]+[>#]) # another pattern
+    initial_commands:
+      - host specific command
+    exit_command: exit

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+    <send timeout="10ms">
+        <![CDATA[
+User Access Verification
+
+Username: ]]></send>
+    <send timeout="10ms"><![CDATA[Password: ]]></send>
+    <send timeout="10ms"><![CDATA[sw1>]]></send>
+    <send timeout="10ms"><![CDATA[sw1>en
+Password: ]]></send>
+    <send timeout="10ms"><![CDATA[sw1#]]></send>
+    <send timeout="10ms"><![CDATA[sw1#sh ver]]></send>
+    <send timeout="10ms"><![CDATA[10:58:35.049 UTC Tue Apr 5 2022
+sw1#]]></send>
+</scenario>

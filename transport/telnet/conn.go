@@ -1,11 +1,12 @@
 package telnet
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 )
 
-//Conn represent telnet connection
+// Conn represent telnet connection
 type Conn struct {
 	conn interface {
 		Read(b []byte) (n int, err error)
@@ -39,6 +40,32 @@ func DialTo(addr string) (*Conn, error) {
 	}
 
 	conn, err := net.Dial(network, addr)
+	if nil != err {
+		return nil, err
+	}
+
+	dataReader := newDataReader(conn)
+	dataWriter := newDataWriter(conn)
+
+	clientConn := Conn{
+		conn:       conn,
+		dataReader: dataReader,
+		dataWriter: dataWriter,
+	}
+
+	return &clientConn, nil
+}
+
+func DialContext(ctx context.Context, addr string) (*Conn, error) {
+	const network = "tcp"
+
+	if addr == "" {
+		addr = "127.0.0.1:telnet"
+	}
+
+	// conn, err := net.Dial(network, addr)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, network, addr)
 	if nil != err {
 		return nil, err
 	}

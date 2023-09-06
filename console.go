@@ -1,166 +1,190 @@
 package console
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
 	"strings"
 	"time"
-)
 
-const (
-	promptWaitTimeout     = 10 * time.Second
-	promptMatchLen    int = 15
-	readBufferSize        = 200
-
-	authPattern   = `(?mi)(user\w+|pass\w+|[\w-()\s]+)[#>:]+(?:\s+)?`
-	promptPattern = `(?mi)([\w-()\s]{2,})[#>]+(?:\s+)?\z`
-
-	userPromptPart     = "user"
-	passwordPromptPart = "pass"
+	"github.com/jgivc/console/config"
+	"github.com/jgivc/console/host"
+	"github.com/jgivc/console/transport"
+	"github.com/jgivc/console/util"
 )
 
 var (
 	cmdEnd = []byte("\r")
 )
 
-//Console is uniform interface for interacting with network hardware via telnet/ssh
+type TransportFactory interface {
+	GetTransport(host *host.Host) (transport.Transport, error)
+}
+
+type promptReader interface {
+	SetPromptPattern(pattern string) error
+	SetDeadLine(deadLine time.Time)
+	Reset()
+	io.Reader
+}
+
 type Console interface {
-	Open(host *Host) error
+	Open(ctx context.Context, host *host.Host) error
 	Execute(cmd string) (string, error)
+	GetCommandResultReader(cmd string) (io.Reader, error)
 	Run(cmd string) error // Just run command and read and omit output
 	Send(cmd string) error
 	Sendln(cmd string) error
-	SetPrompt(pattern string)
+	SetPrompt(pattern string) error
 	Close() error
 }
 
 type console struct {
-	h   *Host
-	tr  transport
-	pm  promptMatcher
-	buf []byte
+	host         *host.Host
+	factory      TransportFactory
+	transport    transport.Transport
+	promptReader promptReader
+	cfg          *config.ConsoleConfig
 }
 
 func (c *console) tryAuth() error {
-	c.pm = newPromptRegexpMatcher(authPattern)
+	if err := c.promptReader.SetPromptPattern(c.cfg.AuthPromptPattern); err != nil {
+		return fmt.Errorf("cannot set authPromptPattern: %w", err)
+	}
+	c.promptReader.SetDeadLine(time.Now().Add(c.cfg.AuthTimeout))
+
+	var enable bool
+
+	var buf bytes.Buffer
 	for {
-		_, err := c.readToPrompt()
+		_, err := buf.ReadFrom(c.promptReader)
 		if err != nil {
-			return err
+			return fmt.Errorf("auth fail: %w", err)
 		}
 
-		m := c.pm.getMatched()
-		if m != nil {
-			if ss, ok := m.([]string); ok {
-				line := ss[1]
-				line = strings.ToLower(line)
-				if strings.Contains(line, userPromptPart) {
-					c.Sendln(c.h.Username)
-				} else if strings.Contains(line, passwordPromptPart) {
-					c.Sendln(c.h.Password)
-				} else {
-					break
+		if strings.Contains(strings.ToLower(buf.String()), c.cfg.UsernamePromptContains) {
+			if err2 := c.Sendln(c.host.Username); err2 != nil {
+				return fmt.Errorf("auth fail: %w", err2)
+			}
+		} else if strings.Contains(strings.ToLower(buf.String()), c.cfg.PasswordPromptContains) {
+			if enable {
+				if err2 := c.Sendln(c.host.EnablePassword); err2 != nil {
+					return fmt.Errorf("auth fail: %w", err2)
+				}
+			} else {
+				if err2 := c.Sendln(c.host.Password); err2 != nil {
+					return fmt.Errorf("auth fail: %w", err2)
 				}
 			}
+		} else if strings.HasSuffix(strings.TrimSpace(buf.String()), c.cfg.PromptSuffix) {
+			if err2 := c.promptReader.SetPromptPattern(c.cfg.PromptPattern); err2 != nil {
+				return fmt.Errorf("cannot set promptPattern: %w", err2)
+			}
+			return nil
+		} else if strings.HasSuffix(strings.TrimSpace(buf.String()), c.cfg.EnableSuffix) {
+			enable = true
+			if err2 := c.Sendln(c.cfg.EnableCommand); err2 != nil {
+				return fmt.Errorf("auth fail: %w", err2)
+			}
+		} else {
+			return fmt.Errorf("cannot login")
 		}
-	}
 
-	c.pm = newPromptRegexpMatcher(promptPattern)
-	return nil
+		c.promptReader.Reset()
+		buf.Reset()
+	}
 }
 
-func (c *console) readToPrompt() (string, error) {
-	b := make([]byte, 0)
-	start := time.Now()
-
-	for {
-		n, err := c.tr.Read(c.buf)
-		if err != nil {
-			if err == errorRreadTimeout {
-				if time.Since(start) < promptWaitTimeout {
-					l := len(b)
-					if l > promptMatchLen {
-						if c.pm.match(string(b[l-promptMatchLen:])) {
-							break
-						}
-					} else {
-						if c.pm.match(string(b)) {
-							break
-						}
-					}
-					continue
-				}
-
-				return "", err
-			}
-		}
-
-		b = append(b, c.buf[:n]...)
-		if l := len(b); l > promptMatchLen {
-			if c.pm.match(string(b[l-promptMatchLen:])) {
-				break
-			}
-		}
-	}
-
-	return string(b), nil
-}
-
-func (c *console) Open(host *Host) error {
+func (c *console) Open(ctx context.Context, host *host.Host) error {
 	var err error
-	c.tr, err = newTransport(host.TransportType)
+	c.transport, err = c.factory.GetTransport(host)
 	if err != nil {
 		return err
 	}
 
-	if err := c.tr.Open(host); err != nil {
-		return err
+	if err2 := c.transport.Open(ctx, host); err2 != nil {
+		return err2
 	}
 
-	c.h = host
+	c.host = host
+	c.promptReader = util.NewPromptReader(c.transport, c.cfg.TransportReaderBufferSize, c.cfg.PromptMatchLengt)
 
-	if err := c.tryAuth(); err != nil {
-		return err
-	}
-
-	return nil
-
+	return c.tryAuth()
 }
 
 func (c *console) Execute(cmd string) (string, error) {
-	c.Sendln(cmd)
-	return c.readToPrompt()
+	c.promptReader.Reset()
+	if err := c.Sendln(cmd); err != nil {
+		return "", fmt.Errorf("cannot execute cmd: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(c.promptReader); err != nil {
+		return "", fmt.Errorf("cannot execute cmd: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+func (c *console) GetCommandResultReader(cmd string) (io.Reader, error) {
+	c.promptReader.Reset()
+	if err := c.Sendln(cmd); err != nil {
+		return nil, fmt.Errorf("cannot execute cmd: %w", err)
+	}
+
+	return c.promptReader, nil
 }
 
 func (c *console) Run(cmd string) error {
-	c.Sendln(cmd)
-	_, err := c.readToPrompt()
+	c.promptReader.Reset()
+	if err := c.Sendln(cmd); err != nil {
+		return fmt.Errorf("cannot execute cmd: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(c.promptReader); err != nil {
+		return fmt.Errorf("cannot execute cmd: %w", err)
+	}
+
+	return nil
+}
+
+func (c *console) Send(cmd string) error {
+	_, err := c.transport.Write([]byte(cmd))
 
 	return err
 }
 
-func (c *console) SetPrompt(pattern string) {
-	c.pm = newPromptRegexpMatcher(pattern)
+func (c *console) Sendln(cmd string) error {
+	if _, err := c.transport.Write([]byte(cmd)); err != nil {
+		return err
+	}
+
+	_, err := c.transport.Write(cmdEnd)
+
+	return err
+}
+
+func (c *console) SetPrompt(pattern string) error {
+	return c.promptReader.SetPromptPattern(pattern)
 }
 
 func (c *console) Close() error {
-	return c.tr.Close()
+	return c.transport.Close()
 }
 
-func (c *console) Send(cmd string) error {
-	c.tr.Write([]byte(cmd))
-
-	return nil
-}
-
-func (c *console) Sendln(cmd string) error {
-	c.tr.Write([]byte(cmd))
-	c.tr.Write(cmdEnd)
-
-	return nil
-}
-
-//New function create Console instance
 func New() Console {
+	return NewWithConfig(config.DefaultConsoleConfig())
+}
+
+func NewWithConfig(cfg *config.ConsoleConfig) Console {
 	return &console{
-		buf: make([]byte, readBufferSize),
+		cfg: cfg,
+		factory: &transport.Factory{
+			DummyFileName: cfg.DummyTransportFileName,
+			ReadTimeout:   cfg.TransportReadTimeout,
+			BufSize:       cfg.TransportReaderBufferSize,
+		},
 	}
 }

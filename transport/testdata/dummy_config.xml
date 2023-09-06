@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+    <send timeout="200ms">
+        <![CDATA[
+User Access Verification
+
+Username: ]]></send>
+    <send timeout="300ms"><![CDATA[Password: ]]></send>
+    <send timeout="400ms"><![CDATA[sw1#]]></send>
+</scenario>
